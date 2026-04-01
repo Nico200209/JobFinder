@@ -2,13 +2,14 @@
 node_modules/
 .pnp/
 .pnp.js
+.yarn/install-state.gz
 
 # Next.js
 .next/
 out/
-build/
 
-# Production
+# Production / Build
+build/
 dist/
 
 # Environment variables — NEVER commit these
