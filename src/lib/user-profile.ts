@@ -1,11 +1,18 @@
 import type { ScoreBreakdown } from '@/types';
 
 // Nicolás García's profile — update as skills evolve
+
+// Core skills used as the scoring denominator (one entry per distinct skill)
 export const USER_SKILLS = [
   'react', 'html', 'css', 'javascript', 'typescript',
   'c#', 'unity', 'figma', 'git', 'nuke', 'postman',
+] as const;
+
+// Additional aliases that also count as a match for core skills in text scanning
+// These do NOT inflate the denominator — they just help with variant spellings
+export const USER_SKILL_ALIASES = [
   'next.js', 'nextjs', 'next js', 'tailwind', 'tailwindcss',
-  'node', 'node.js', 'nodejs',
+  'node', 'node.js', 'nodejs', 'reactjs', 'react.js',
 ] as const;
 
 export const KNOWN_COMPANIES: ReadonlySet<string> = new Set([
