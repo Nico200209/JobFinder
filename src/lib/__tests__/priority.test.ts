@@ -34,7 +34,7 @@ describe('computePriorityScore', () => {
   it('returns a value between 0 and 1', () => {
     const score = computePriorityScore(
       mockScoring(0.8),
-      makeRaw({ posted_at: daysFromNow(-2), expires_at: null }),
+      makeRaw({ posted_at: daysFromNow(-2), expires_at: undefined }),
       NOW
     );
     expect(score).toBeGreaterThanOrEqual(0);
@@ -55,7 +55,7 @@ describe('computePriorityScore', () => {
 
   it('null posted_at uses neutral freshness (0.5)', () => {
     const withDate    = computePriorityScore(mockScoring(0.8), makeRaw({ posted_at: daysFromNow(-1) }), NOW);
-    const withoutDate = computePriorityScore(mockScoring(0.8), makeRaw({ posted_at: null }), NOW);
+    const withoutDate = computePriorityScore(mockScoring(0.8), makeRaw({ posted_at: undefined }), NOW);
     // neutral (0.5) is less than max freshness (1.0) for a fresh post
     expect(withDate).toBeGreaterThan(withoutDate);
   });
@@ -68,7 +68,7 @@ describe('computePriorityScore', () => {
 
   it('null expires_at uses neutral deadline (0.5)', () => {
     const urgentDeadline = computePriorityScore(mockScoring(0.8), makeRaw({ expires_at: daysFromNow(2) }), NOW);
-    const noDeadline     = computePriorityScore(mockScoring(0.8), makeRaw({ expires_at: null }), NOW);
+    const noDeadline     = computePriorityScore(mockScoring(0.8), makeRaw({ expires_at: undefined }), NOW);
     expect(urgentDeadline).toBeGreaterThan(noDeadline);
   });
 

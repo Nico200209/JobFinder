@@ -112,7 +112,7 @@ function scoreSalary(job: RawJob): number {
 
 function scoreCompanyReputation(job: RawJob): number {
   const name = normalize(job.company);
-  const isKnown = [...KNOWN_COMPANIES].some((known) => name.includes(known));
+  const isKnown = KNOWN_COMPANIES.some((known) => name.includes(known));
   return isKnown ? 1.0 : 0.4;
 }
 

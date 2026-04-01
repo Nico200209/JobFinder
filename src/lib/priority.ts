@@ -30,7 +30,7 @@ function deadlineFactor(expires_at: string | null | undefined, now: Date): numbe
 
 function companyTierFactor(company: string): number {
   const name = company.toLowerCase();
-  return [...KNOWN_COMPANIES].some((known) => name.includes(known)) ? 1.0 : 0.3;
+  return KNOWN_COMPANIES.some((known) => name.includes(known)) ? 1.0 : 0.3;
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────

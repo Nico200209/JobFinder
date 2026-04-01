@@ -15,14 +15,14 @@ export const USER_SKILL_ALIASES = [
   'node', 'node.js', 'nodejs', 'reactjs', 'react.js',
 ] as const;
 
-export const KNOWN_COMPANIES: ReadonlySet<string> = new Set([
+export const KNOWN_COMPANIES = [
   'google', 'microsoft', 'apple', 'meta', 'amazon', 'netflix', 'spotify',
   'stripe', 'shopify', 'notion', 'figma', 'vercel', 'supabase', 'github',
   'atlassian', 'slack', 'airbnb', 'uber', 'twilio', 'datadog', 'cloudflare',
   'epic games', 'riot games', 'riot', 'unity technologies', 'ubisoft',
   'electronic arts', 'ea games', 'activision', 'blizzard', 'square enix',
   'capcom', 'bandai namco', 'cd projekt', 'valve', '2k games', 'bethesda',
-]);
+] as const;
 
 export const DR_LOCATION_TOKENS = [
   'santo domingo', 'dominican republic', 'república dominicana',

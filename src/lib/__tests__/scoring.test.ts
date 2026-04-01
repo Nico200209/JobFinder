@@ -26,8 +26,8 @@ describe('scoreJob', () => {
       const keys = ['skillMatch', 'language', 'remote', 'seniority', 'salary', 'companyReputation', 'location', 'growth'];
       for (const key of keys) {
         expect(score_breakdown).toHaveProperty(key);
-        expect((score_breakdown as Record<string, number>)[key]).toBeGreaterThanOrEqual(0);
-        expect((score_breakdown as Record<string, number>)[key]).toBeLessThanOrEqual(1);
+        expect((score_breakdown as unknown as Record<string, number>)[key]).toBeGreaterThanOrEqual(0);
+        expect((score_breakdown as unknown as Record<string, number>)[key]).toBeLessThanOrEqual(1);
       }
     });
 
