@@ -20,40 +20,40 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // supabaseResponse must use `let` so it can be reassigned in setAll.
-  // This is required by @supabase/ssr to correctly forward refreshed session cookies.
+  // Fail closed: if Supabase client creation or getUser() throws for any reason
+  // (invalid URL, network error, misconfiguration), treat as unauthenticated and redirect to login.
+  let user = null;
   let supabaseResponse = NextResponse.next({ request });
 
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
+  try {
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          getAll() {
+            return request.cookies.getAll();
+          },
+          setAll(cookiesToSet) {
+            cookiesToSet.forEach(({ name, value }) =>
+              request.cookies.set(name, value)
+            );
+            supabaseResponse = NextResponse.next({ request });
+            cookiesToSet.forEach(({ name, value, options }) =>
+              supabaseResponse.cookies.set(name, value, options)
+            );
+          },
         },
-        setAll(cookiesToSet) {
-          // Set cookies on the request so server components can read the refreshed session
-          cookiesToSet.forEach(({ name, value }) =>
-            request.cookies.set(name, value)
-          );
-          // Rebuild the response with the updated request
-          supabaseResponse = NextResponse.next({ request });
-          // Set cookies on the response so the browser receives them
-          cookiesToSet.forEach(({ name, value, options }) =>
-            supabaseResponse.cookies.set(name, value, options)
-          );
-        },
-      },
-    }
-  );
+      }
+    );
 
-  // IMPORTANT: Use getUser(), NOT getSession().
-  // getUser() verifies the JWT with Supabase's servers.
-  // getSession() only reads the cookie and does NOT verify — insufficient for an auth guard.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+    // IMPORTANT: Use getUser(), NOT getSession().
+    // getUser() verifies the JWT with Supabase's servers.
+    const { data } = await supabase.auth.getUser();
+    user = data.user;
+  } catch {
+    // Any error → treat as unauthenticated
+  }
 
   if (!user) {
     const loginUrl = request.nextUrl.clone();

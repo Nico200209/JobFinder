@@ -65,3 +65,6 @@ Desktop.ini
 *.key
 *.cert
 .cache/
+
+# Superpowers brainstorming sessions
+.superpowers/
