@@ -1,0 +1,23 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #0A0A0B;
+    --background-card: #141416;
+    --accent-blue: #3B82F6;
+    --accent-emerald: #10B981;
+  }
+
+  html {
+    background-color: #0A0A0B;
+    color: #ffffff;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+}
