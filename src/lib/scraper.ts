@@ -1,7 +1,8 @@
 // ============================================================
 // JobRadar — Job Scraper
-// Fetches from JSearch (RapidAPI), Remotive, and Arbeitnow.
-// All adapters normalize to RawJob and fail gracefully.
+// Fetches from multiple job APIs and normalizes to RawJob.
+// Sources: JSearch, Remotive, Arbeitnow, Torre.ai, Get on Board
+// All adapters fail gracefully — one failure never blocks others.
 // ============================================================
 
 import type {
