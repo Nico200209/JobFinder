@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchFromTorre } from '../scraper';
+import { fetchFromTorre, fetchFromGetOnBoard } from '../scraper';
 
 function mockFetch(body: unknown, ok = true, status = 200) {
   vi.stubGlobal(
@@ -90,6 +90,78 @@ describe('fetchFromTorre', () => {
     mockFetch({}, false, 429);
     await expect(fetchFromTorre(['react'], { remote: true })).rejects.toThrow(
       'Torre.ai request failed: 429'
+    );
+  });
+});
+
+describe('fetchFromGetOnBoard', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('filters jobs by keyword and normalizes to RawJob', async () => {
+    mockFetch([
+      {
+        id: 42,
+        title: 'React Developer',
+        company: { name: 'StartupCL', logo_url: null },
+        description: '<p>We need React and TypeScript skills</p>',
+        remote_position: true,
+        country: 'Chile',
+        published_at: '2026-04-01T00:00:00Z',
+        url: 'https://www.getonbrd.com/jobs/42',
+      },
+      {
+        id: 43,
+        title: 'Java Backend Engineer',
+        company: { name: 'OtherCo', logo_url: null },
+        description: '<p>Java Spring Boot experience required</p>',
+        remote_position: true,
+        country: 'Colombia',
+        published_at: '2026-04-01T00:00:00Z',
+        url: 'https://www.getonbrd.com/jobs/43',
+      },
+    ]);
+
+    const jobs = await fetchFromGetOnBoard(['react'], 50);
+
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].external_id).toBe('getonboard_42');
+    expect(jobs[0].title).toBe('React Developer');
+    expect(jobs[0].company).toBe('StartupCL');
+    expect(jobs[0].remote_type).toBe('remote');
+    expect(jobs[0].source).toBe('getonboard');
+    expect(jobs[0].description).not.toContain('<p>');
+    expect(jobs[0].posted_at).toBe('2026-04-01T00:00:00Z');
+  });
+
+  it('returns empty array when no jobs match keywords', async () => {
+    mockFetch([
+      {
+        id: 99,
+        title: 'Java Backend Engineer',
+        company: { name: 'OtherCo', logo_url: null },
+        description: '<p>Java only</p>',
+        remote_position: true,
+        country: 'Colombia',
+        published_at: '2026-04-01T00:00:00Z',
+        url: 'https://www.getonbrd.com/jobs/99',
+      },
+    ]);
+
+    const jobs = await fetchFromGetOnBoard(['react', 'typescript'], 50);
+    expect(jobs).toEqual([]);
+  });
+
+  it('throws on non-ok HTTP response', async () => {
+    mockFetch({}, false, 503);
+    await expect(fetchFromGetOnBoard(['react'], 50)).rejects.toThrow(
+      'Get on Board request failed: 503'
+    );
+  });
+
+  it('throws on unexpected response shape', async () => {
+    mockFetch({ jobs: [] }); // object instead of array
+    await expect(fetchFromGetOnBoard(['react'], 50)).rejects.toThrow(
+      'Get on Board returned unexpected response shape'
     );
   });
 });

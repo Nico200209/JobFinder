@@ -465,6 +465,90 @@ export async function fetchFromTorre(
 }
 
 // ------------------------------------------------------------
+// Get on Board Adapter
+// ------------------------------------------------------------
+
+interface GetOnBoardJob {
+  id: number | string;
+  title: string;
+  company: { name: string; logo_url?: string | null };
+  description: string;
+  remote_position: boolean;
+  country: string;
+  published_at: string;
+  url: string;
+}
+
+function isGetOnBoardResponse(data: unknown): data is unknown[] {
+  return Array.isArray(data);
+}
+
+function isGetOnBoardJob(item: unknown): item is GetOnBoardJob {
+  if (typeof item !== 'object' || item === null) return false;
+  const j = item as Record<string, unknown>;
+  return (
+    (typeof j.id === 'number' || typeof j.id === 'string') &&
+    typeof j.title === 'string' &&
+    typeof j.company === 'object' &&
+    j.company !== null &&
+    typeof (j.company as Record<string, unknown>).name === 'string' &&
+    typeof j.url === 'string'
+  );
+}
+
+function normalizeGetOnBoardJob(job: GetOnBoardJob): RawJob {
+  return {
+    external_id: `getonboard_${job.id}`,
+    title: job.title,
+    company: job.company.name,
+    company_logo_url: job.company.logo_url ?? undefined,
+    location: job.country || undefined,
+    remote_type: job.remote_position ? 'remote' : 'onsite',
+    description: stripHtml(job.description),
+    url: job.url,
+    source: 'getonboard' as JobSource,
+    posted_at: job.published_at,
+  };
+}
+
+/**
+ * Fetch LATAM remote tech jobs from Get on Board, filtered client-side by keywords.
+ */
+export async function fetchFromGetOnBoard(
+  keywords: string[],
+  limit: number
+): Promise<RawJob[]> {
+  const params = new URLSearchParams({ per_page: String(limit) });
+
+  const response = await fetch(
+    `https://www.getonbrd.com/api/v0/jobs?${params.toString()}`
+  );
+
+  if (!response.ok) {
+    throw new Error(
+      `Get on Board request failed: ${response.status} ${response.statusText}`
+    );
+  }
+
+  const json: unknown = await response.json();
+  if (!isGetOnBoardResponse(json)) {
+    throw new Error('Get on Board returned unexpected response shape');
+  }
+
+  const matching: RawJob[] = [];
+  for (const item of json) {
+    if (!isGetOnBoardJob(item)) continue;
+    const descSnippet = stripHtml(item.description).slice(0, 500);
+    const searchText = `${item.title} ${descSnippet}`;
+    if (jobMatchesKeywords(searchText, keywords)) {
+      matching.push(normalizeGetOnBoardJob(item));
+    }
+  }
+
+  return matching;
+}
+
+// ------------------------------------------------------------
 // Main Entry Point
 // ------------------------------------------------------------
 
