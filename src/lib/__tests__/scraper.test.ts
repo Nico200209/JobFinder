@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchFromTorre, fetchFromGetOnBoard } from '../scraper';
+import { fetchFromTorre, fetchFromGetOnBoard, fetchFromJSearch } from '../scraper';
 
 function mockFetch(body: unknown, ok = true, status = 200) {
   vi.stubGlobal(
@@ -163,5 +163,59 @@ describe('fetchFromGetOnBoard', () => {
     await expect(fetchFromGetOnBoard(['react'], 50)).rejects.toThrow(
       'Get on Board returned unexpected response shape'
     );
+  });
+});
+
+describe('fetchFromJSearch — location parameter', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    delete process.env.RAPIDAPI_KEY;
+  });
+
+  it('includes location param and omits remote_jobs_only when location is set', async () => {
+    const capturedUrls: string[] = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        capturedUrls.push(url);
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: [] }),
+        });
+      })
+    );
+
+    process.env.RAPIDAPI_KEY = 'test-key';
+    await fetchFromJSearch(['software developer'], true, 'Dominican Republic');
+
+    expect(capturedUrls).toHaveLength(1);
+    expect(capturedUrls[0]).toContain('location=Dominican+Republic');
+    expect(capturedUrls[0]).not.toContain('remote_jobs_only');
+  });
+
+  it('caps at 1 keyword when location is set', async () => {
+    const capturedUrls: string[] = [];
+
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockImplementation((url: string) => {
+        capturedUrls.push(url);
+        return Promise.resolve({
+          ok: true,
+          json: async () => ({ data: [] }),
+        });
+      })
+    );
+
+    process.env.RAPIDAPI_KEY = 'test-key';
+    await fetchFromJSearch(
+      ['react developer', 'game designer', 'frontend'],
+      false,
+      'Dominican Republic'
+    );
+
+    // Only 1 request regardless of how many keywords
+    expect(capturedUrls).toHaveLength(1);
   });
 });

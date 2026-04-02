@@ -107,25 +107,30 @@ function normalizeJSearchJob(job: JSearchJob): RawJob {
 
 /**
  * Fetch jobs from JSearch (RapidAPI).
- * Rate-limit safeguard: only queries first 3 keywords (~90 req/month on free tier).
+ * - Remote mode: queries first 3 keywords with remote_jobs_only=true (~90 req/month)
+ * - Location mode: queries first keyword only with a location filter (~30 req/month)
  */
 export async function fetchFromJSearch(
   keywords: string[],
-  remoteOnly: boolean
+  remoteOnly: boolean,
+  location?: string
 ): Promise<RawJob[]> {
   const apiKey = process.env.RAPIDAPI_KEY;
   if (!apiKey) throw new Error('RAPIDAPI_KEY is not set');
 
-  // Cap at 3 keywords to stay within 200 req/month free tier
-  const queryKeywords = keywords.slice(0, 3);
+  // Location queries cap at 1 keyword to conserve quota
+  const queryKeywords = location ? keywords.slice(0, 1) : keywords.slice(0, 3);
   const jobs: RawJob[] = [];
 
   for (const keyword of queryKeywords) {
-    const params = new URLSearchParams({
-      query: keyword,
-      num_pages: '1',
-      ...(remoteOnly ? { remote_jobs_only: 'true' } : {}),
-    });
+    const params = new URLSearchParams({ query: keyword, num_pages: '1' });
+
+    if (location) {
+      params.set('location', location);
+      // remote_jobs_only must be omitted for on-site location queries
+    } else if (remoteOnly) {
+      params.set('remote_jobs_only', 'true');
+    }
 
     const response = await fetch(
       `https://jsearch.p.rapidapi.com/search?${params.toString()}`,
@@ -145,7 +150,9 @@ export async function fetchFromJSearch(
 
     const json: unknown = await response.json();
     if (!isJSearchResponse(json)) {
-      throw new Error(`JSearch returned unexpected response shape for keyword "${keyword}"`);
+      throw new Error(
+        `JSearch returned unexpected response shape for keyword "${keyword}"`
+      );
     }
 
     for (const item of json.data) {
