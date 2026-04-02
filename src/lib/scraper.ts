@@ -492,6 +492,8 @@ function isGetOnBoardJob(item: unknown): item is GetOnBoardJob {
     typeof j.company === 'object' &&
     j.company !== null &&
     typeof (j.company as Record<string, unknown>).name === 'string' &&
+    typeof j.description === 'string' &&
+    typeof j.remote_position === 'boolean' &&
     typeof j.url === 'string'
   );
 }
