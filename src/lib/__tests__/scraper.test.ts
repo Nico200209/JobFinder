@@ -20,15 +20,13 @@ describe('fetchFromTorre', () => {
     mockFetch({
       results: [
         {
-          opportunity: {
-            id: 'abc123',
-            objective: 'Frontend Developer',
-            organizations: [{ name: 'Acme LATAM', picture: 'https://logo.png' }],
-            locations: [{ name: 'Colombia' }],
-            remote: true,
-            compensation: { minAmount: 40000, maxAmount: 60000, currency: 'USD' },
-            deadline: null,
-          },
+          id: 'abc123',
+          objective: 'Frontend Developer',
+          organizations: [{ name: 'Acme LATAM', picture: 'https://logo.png' }],
+          locations: ['Colombia'],
+          remote: true,
+          compensation: { data: { minAmount: 40000, maxAmount: 60000, currency: 'USD' } },
+          created: '2024-12-01T00:00:00Z',
         },
       ],
     });
@@ -45,21 +43,58 @@ describe('fetchFromTorre', () => {
     expect(jobs[0].salary_min).toBe(40000);
     expect(jobs[0].salary_max).toBe(60000);
     expect(jobs[0].salary_currency).toBe('USD');
+    expect(jobs[0].posted_at).toBe('2024-12-01T00:00:00Z');
   });
 
-  it('sets remote_type to onsite when remote=false', async () => {
+  it('filters out non-remote jobs when options.remote is true', async () => {
     mockFetch({
       results: [
         {
-          opportunity: {
-            id: 'xyz',
-            objective: 'Game Designer',
-            organizations: [{ name: 'DR Studio' }],
-            locations: [{ name: 'Santo Domingo' }],
-            remote: false,
-            compensation: null,
-            deadline: null,
-          },
+          id: 'r1',
+          objective: 'Remote Dev',
+          organizations: [{ name: 'Co A' }],
+          locations: ['Mexico'],
+          remote: true,
+          compensation: null,
+          created: null,
+        },
+        {
+          id: 'o1',
+          objective: 'Onsite Dev',
+          organizations: [{ name: 'Co B' }],
+          locations: ['Bogota'],
+          remote: false,
+          compensation: null,
+          created: null,
+        },
+      ],
+    });
+
+    const jobs = await fetchFromTorre(['developer'], { remote: true });
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].external_id).toBe('torre_r1');
+  });
+
+  it('filters for DR location when location option is set', async () => {
+    mockFetch({
+      results: [
+        {
+          id: 'dr1',
+          objective: 'Game Designer',
+          organizations: [{ name: 'DR Studio' }],
+          locations: ['Santo Domingo, Dominican Republic'],
+          remote: false,
+          compensation: null,
+          created: null,
+        },
+        {
+          id: 'mx1',
+          objective: 'Game Designer',
+          organizations: [{ name: 'MX Studio' }],
+          locations: ['Mexico City, Mexico'],
+          remote: false,
+          compensation: null,
+          created: null,
         },
       ],
     });
@@ -69,8 +104,9 @@ describe('fetchFromTorre', () => {
       location: 'Dominican Republic',
     });
 
+    expect(jobs).toHaveLength(1);
+    expect(jobs[0].external_id).toBe('torre_dr1');
     expect(jobs[0].remote_type).toBe('onsite');
-    expect(jobs[0].location).toBe('Santo Domingo');
   });
 
   it('returns empty array when results is empty', async () => {

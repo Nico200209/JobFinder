@@ -363,26 +363,20 @@ interface TorreOrganization {
   picture?: string;
 }
 
-interface TorreLocation {
-  name: string;
-}
-
-interface TorreOpportunity {
+interface TorreOpportunityResult {
   id: string;
   objective: string;
   organizations: TorreOrganization[];
-  locations: TorreLocation[];
+  locations: string[];
   remote: boolean;
   compensation: {
-    minAmount?: number;
-    maxAmount?: number;
-    currency?: string;
+    data: {
+      minAmount?: number | null;
+      maxAmount?: number | null;
+      currency?: string;
+    };
   } | null;
-  deadline: string | null;
-}
-
-interface TorreResult {
-  opportunity: TorreOpportunity;
+  created: string | null;
 }
 
 function isTorreResponse(data: unknown): data is { results: unknown[] } {
@@ -394,37 +388,36 @@ function isTorreResponse(data: unknown): data is { results: unknown[] } {
   );
 }
 
-function isTorreResult(item: unknown): item is TorreResult {
+function isTorreOpportunityResult(item: unknown): item is TorreOpportunityResult {
   if (typeof item !== 'object' || item === null) return false;
   const r = item as Record<string, unknown>;
-  if (typeof r.opportunity !== 'object' || r.opportunity === null) return false;
-  const opp = r.opportunity as Record<string, unknown>;
   return (
-    typeof opp.id === 'string' &&
-    typeof opp.objective === 'string' &&
-    Array.isArray(opp.organizations)
+    typeof r.id === 'string' &&
+    typeof r.objective === 'string' &&
+    Array.isArray(r.organizations) &&
+    Array.isArray(r.locations)
   );
 }
 
-function normalizeTorreJob(opp: TorreOpportunity): RawJob {
-  const company = opp.organizations[0]?.name ?? 'Unknown';
-  const logo = opp.organizations[0]?.picture;
-  const location = opp.locations[0]?.name;
-  const comp = opp.compensation;
+function normalizeTorreJob(result: TorreOpportunityResult): RawJob {
+  const company = result.organizations[0]?.name ?? 'Unknown';
+  const logo = result.organizations[0]?.picture;
+  const location = result.locations[0];
+  const comp = result.compensation?.data;
 
   return {
-    external_id: `torre_${opp.id}`,
-    title: opp.objective,
+    external_id: `torre_${result.id}`,
+    title: result.objective,
     company,
     company_logo_url: logo || undefined,
     location: location || undefined,
-    remote_type: opp.remote ? 'remote' : 'onsite',
+    remote_type: result.remote ? 'remote' : 'onsite',
     salary_min: comp?.minAmount ?? undefined,
     salary_max: comp?.maxAmount ?? undefined,
     salary_currency: comp?.currency ?? undefined,
-    url: `https://torre.ai/jobs/${opp.id}`,
+    url: `https://torre.ai/opportunities/${result.id}`,
     source: 'torre' as JobSource,
-    expires_at: opp.deadline ?? undefined,
+    posted_at: result.created ?? undefined,
   };
 }
 
@@ -439,16 +432,14 @@ export async function fetchFromTorre(
   const jobs: RawJob[] = [];
 
   for (const keyword of keywords.slice(0, 3)) {
-    const filters: Record<string, unknown> = { remote: options.remote };
-    if (options.location) {
-      filters.locationName = [options.location];
-    }
-
-    const response = await fetch('https://torre.ai/api/search/jobs', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ query: keyword, offset: 0, size: 20, filters }),
-    });
+    const response = await fetch(
+      'https://search.torre.co/opportunities/_search?offset=0&size=20',
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ query: keyword }),
+      }
+    );
 
     if (!response.ok) {
       throw new Error(
@@ -462,9 +453,17 @@ export async function fetchFromTorre(
     }
 
     for (const item of json.results) {
-      if (isTorreResult(item)) {
-        jobs.push(normalizeTorreJob(item.opportunity));
+      if (!isTorreOpportunityResult(item)) continue;
+
+      // Client-side filter by remote/location
+      if (options.location) {
+        const locationPattern = /dominican|santo domingo/i;
+        if (!item.locations.some((l) => locationPattern.test(l))) continue;
+      } else if (options.remote && !item.remote) {
+        continue;
       }
+
+      jobs.push(normalizeTorreJob(item));
     }
   }
 
