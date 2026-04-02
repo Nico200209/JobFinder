@@ -574,35 +574,60 @@ function deduplicateByExternalId(jobs: RawJob[]): RawJob[] {
 }
 
 /**
- * Scrape all three sources in parallel. Returns deduplicated RawJob list
+ * Scrape all sources in parallel. Returns deduplicated RawJob list
  * plus per-source stats. One failing source never blocks the others.
+ *
+ * Sources:
+ *  1. JSearch remote       — global remote jobs
+ *  2. JSearch DR           — on-site Dominican Republic jobs
+ *  3. Torre.ai remote      — remote LATAM jobs
+ *  4. Torre.ai DR          — on-site Dominican Republic jobs via Torre
+ *  5. Get on Board         — remote LATAM tech jobs
+ *  6. Remotive             — remote global tech jobs
+ *  7. Arbeitnow            — remote EU jobs
  */
 export async function scrapeAllSources(criteria: SearchCriteria): Promise<{
   jobs: RawJob[];
   sourceResults: SourceResult[];
 }> {
   const { keywords, remote_only, max_results_per_run } = criteria;
+  const drKeyword = keywords[0] ?? 'software developer';
 
-  const [jSearchResult, remotiveResult, arbeitnowResult] =
-    await Promise.allSettled([
-      fetchFromJSearch(keywords, remote_only),
-      fetchFromRemotive(keywords, max_results_per_run),
-      fetchFromArbeitnow(keywords, max_results_per_run),
-    ]);
+  const [
+    jSearchRemoteResult,
+    jSearchDrResult,
+    torreRemoteResult,
+    torreDrResult,
+    getOnBoardResult,
+    remotiveResult,
+    arbeitnowResult,
+  ] = await Promise.allSettled([
+    fetchFromJSearch(keywords, remote_only),
+    fetchFromJSearch([drKeyword], false, 'Dominican Republic'),
+    fetchFromTorre(keywords, { remote: true }),
+    fetchFromTorre(keywords, { remote: false, location: 'Dominican Republic' }),
+    fetchFromGetOnBoard(keywords, max_results_per_run),
+    fetchFromRemotive(keywords, max_results_per_run),
+    fetchFromArbeitnow(keywords, max_results_per_run),
+  ]);
 
-  const sourceResults: SourceResult[] = [];
-  const allJobs: RawJob[] = [];
-
-  const sources: Array<{
+  const settled: Array<{
     source: JobSource;
     result: PromiseSettledResult<RawJob[]>;
   }> = [
-    { source: 'jsearch', result: jSearchResult },
+    { source: 'jsearch', result: jSearchRemoteResult },
+    { source: 'jsearch', result: jSearchDrResult },
+    { source: 'torre', result: torreRemoteResult },
+    { source: 'torre', result: torreDrResult },
+    { source: 'getonboard', result: getOnBoardResult },
     { source: 'remotive', result: remotiveResult },
     { source: 'arbeitnow', result: arbeitnowResult },
   ];
 
-  for (const { source, result } of sources) {
+  const sourceResults: SourceResult[] = [];
+  const allJobs: RawJob[] = [];
+
+  for (const { source, result } of settled) {
     if (result.status === 'fulfilled') {
       allJobs.push(...result.value);
       sourceResults.push({ source, fetched: result.value.length, error: null });
