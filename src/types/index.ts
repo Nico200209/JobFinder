@@ -19,7 +19,7 @@ export type JobStatus =
 
 export type RemoteType = 'remote' | 'hybrid' | 'onsite';
 
-export type JobSource = 'jsearch' | 'remotive' | 'arbeitnow' | 'torre' | 'getonboard' | 'manual';
+export type JobSource = 'jsearch' | 'remotive' | 'arbeitnow' | 'torre' | 'getonboard' | 'himalayas' | 'manual';
 
 // ------------------------------------------------------------
 // Score Types

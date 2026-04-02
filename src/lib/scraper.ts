@@ -1,7 +1,7 @@
 // ============================================================
 // JobRadar — Job Scraper
 // Fetches from multiple job APIs and normalizes to RawJob.
-// Sources: JSearch, Remotive, Arbeitnow, Torre.ai, Get on Board
+// Sources: JSearch, Remotive, Arbeitnow, Torre.ai, Himalayas
 // All adapters fail gracefully — one failure never blocks others.
 // ============================================================
 
@@ -471,85 +471,106 @@ export async function fetchFromTorre(
 }
 
 // ------------------------------------------------------------
-// Get on Board Adapter
+// Himalayas Adapter
 // ------------------------------------------------------------
 
-interface GetOnBoardJob {
-  id: number | string;
+interface HimalayasJob {
+  guid: string;
   title: string;
-  company: { name: string; logo_url?: string | null };
+  companyName: string;
+  companyLogo: string | null;
   description: string;
-  remote_position: boolean;
-  country: string;
-  published_at: string;
-  url: string;
+  minSalary: number | null;
+  maxSalary: number | null;
+  currency: string | null;
+  pubDate: number | null;
+  expiryDate: number | null;
+  applicationLink: string;
+  locationRestrictions: string[] | null;
 }
 
-function isGetOnBoardResponse(data: unknown): data is unknown[] {
-  return Array.isArray(data);
-}
-
-function isGetOnBoardJob(item: unknown): item is GetOnBoardJob {
-  if (typeof item !== 'object' || item === null) return false;
-  const j = item as Record<string, unknown>;
+function isHimalayasResponse(data: unknown): data is { jobs: unknown[] } {
   return (
-    (typeof j.id === 'number' || typeof j.id === 'string') &&
-    typeof j.title === 'string' &&
-    typeof j.company === 'object' &&
-    j.company !== null &&
-    typeof (j.company as Record<string, unknown>).name === 'string' &&
-    typeof j.description === 'string' &&
-    typeof j.remote_position === 'boolean' &&
-    typeof j.url === 'string'
+    typeof data === 'object' &&
+    data !== null &&
+    'jobs' in data &&
+    Array.isArray((data as Record<string, unknown>).jobs)
   );
 }
 
-function normalizeGetOnBoardJob(job: GetOnBoardJob): RawJob {
+function isHimalayasJob(item: unknown): item is HimalayasJob {
+  if (typeof item !== 'object' || item === null) return false;
+  const j = item as Record<string, unknown>;
+  return (
+    typeof j.guid === 'string' &&
+    typeof j.title === 'string' &&
+    typeof j.companyName === 'string' &&
+    typeof j.applicationLink === 'string' &&
+    typeof j.description === 'string'
+  );
+}
+
+function normalizeHimalayasJob(job: HimalayasJob): RawJob {
+  // Derive a stable slug-based ID from the guid URL path
+  // e.g. "https://himalayas.app/companies/acme/jobs/react-dev" → "himalayas_acme_react-dev"
+  const guidSlug = job.guid.replace('https://himalayas.app/companies/', '').replace('/jobs/', '_');
+  const location =
+    job.locationRestrictions && job.locationRestrictions.length > 0
+      ? job.locationRestrictions.join(', ')
+      : undefined;
+
   return {
-    external_id: `getonboard_${job.id}`,
+    external_id: `himalayas_${guidSlug}`,
     title: job.title,
-    company: job.company.name,
-    company_logo_url: job.company.logo_url ?? undefined,
-    location: job.country || undefined,
-    remote_type: job.remote_position ? 'remote' : 'onsite',
+    company: job.companyName,
+    company_logo_url: job.companyLogo ?? undefined,
+    location,
+    // Himalayas only lists remote jobs
+    remote_type: 'remote',
     description: stripHtml(job.description),
-    url: job.url,
-    source: 'getonboard' as JobSource,
-    posted_at: job.published_at,
+    salary_min: job.minSalary ?? undefined,
+    salary_max: job.maxSalary ?? undefined,
+    salary_currency: job.currency ?? undefined,
+    url: job.applicationLink,
+    source: 'himalayas' as JobSource,
+    posted_at: job.pubDate !== null ? new Date(job.pubDate * 1000).toISOString() : undefined,
+    expires_at: job.expiryDate !== null ? new Date(job.expiryDate * 1000).toISOString() : undefined,
   };
 }
 
 /**
- * Fetch LATAM remote tech jobs from Get on Board, filtered client-side by keywords.
+ * Fetch remote jobs from Himalayas, using server-side keyword search
+ * and deduplicating client-side. No auth required.
  */
-export async function fetchFromGetOnBoard(
+export async function fetchFromHimalayas(
   keywords: string[],
   limit: number
 ): Promise<RawJob[]> {
-  const params = new URLSearchParams({ per_page: String(limit) });
+  const query = keywords.slice(0, 3).join(' ');
+  const params = new URLSearchParams({ q: query, limit: String(limit) });
 
   const response = await fetch(
-    `https://www.getonbrd.com/api/v0/jobs?${params.toString()}`
+    `https://himalayas.app/jobs/api?${params.toString()}`
   );
 
   if (!response.ok) {
     throw new Error(
-      `Get on Board request failed: ${response.status} ${response.statusText}`
+      `Himalayas request failed: ${response.status} ${response.statusText}`
     );
   }
 
   const json: unknown = await response.json();
-  if (!isGetOnBoardResponse(json)) {
-    throw new Error('Get on Board returned unexpected response shape');
+  if (!isHimalayasResponse(json)) {
+    throw new Error('Himalayas returned unexpected response shape');
   }
 
   const matching: RawJob[] = [];
-  for (const item of json) {
-    if (!isGetOnBoardJob(item)) continue;
+  for (const item of json.jobs) {
+    if (!isHimalayasJob(item)) continue;
     const descSnippet = stripHtml(item.description).slice(0, 500);
     const searchText = `${item.title} ${descSnippet}`;
     if (jobMatchesKeywords(searchText, keywords)) {
-      matching.push(normalizeGetOnBoardJob(item));
+      matching.push(normalizeHimalayasJob(item));
     }
   }
 
@@ -581,7 +602,7 @@ function deduplicateByExternalId(jobs: RawJob[]): RawJob[] {
  *  2. JSearch DR           — on-site Dominican Republic jobs
  *  3. Torre.ai remote      — remote LATAM jobs
  *  4. Torre.ai DR          — on-site Dominican Republic jobs via Torre
- *  5. Get on Board         — remote LATAM tech jobs
+ *  5. Himalayas            — remote global tech jobs (LATAM/DR coverage)
  *  6. Remotive             — remote global tech jobs
  *  7. Arbeitnow            — remote EU jobs
  */
@@ -597,7 +618,7 @@ export async function scrapeAllSources(criteria: SearchCriteria): Promise<{
     jSearchDrResult,
     torreRemoteResult,
     torreDrResult,
-    getOnBoardResult,
+    himalayasResult,
     remotiveResult,
     arbeitnowResult,
   ] = await Promise.allSettled([
@@ -605,7 +626,7 @@ export async function scrapeAllSources(criteria: SearchCriteria): Promise<{
     fetchFromJSearch([drKeyword], false, 'Dominican Republic'),
     fetchFromTorre(keywords, { remote: true }),
     fetchFromTorre(keywords, { remote: false, location: 'Dominican Republic' }),
-    fetchFromGetOnBoard(keywords, max_results_per_run),
+    fetchFromHimalayas(keywords, max_results_per_run),
     fetchFromRemotive(keywords, max_results_per_run),
     fetchFromArbeitnow(keywords, max_results_per_run),
   ]);
@@ -618,7 +639,7 @@ export async function scrapeAllSources(criteria: SearchCriteria): Promise<{
     { source: 'jsearch', result: jSearchDrResult },
     { source: 'torre', result: torreRemoteResult },
     { source: 'torre', result: torreDrResult },
-    { source: 'getonboard', result: getOnBoardResult },
+    { source: 'himalayas', result: himalayasResult },
     { source: 'remotive', result: remotiveResult },
     { source: 'arbeitnow', result: arbeitnowResult },
   ];

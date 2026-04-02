@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { fetchFromTorre, fetchFromGetOnBoard, fetchFromJSearch } from '../scraper';
+import { fetchFromTorre, fetchFromHimalayas, fetchFromJSearch } from '../scraper';
 
 function mockFetch(body: unknown, ok = true, status = 200) {
   vi.stubGlobal(
@@ -130,74 +130,96 @@ describe('fetchFromTorre', () => {
   });
 });
 
-describe('fetchFromGetOnBoard', () => {
+describe('fetchFromHimalayas', () => {
   afterEach(() => vi.unstubAllGlobals());
 
   it('filters jobs by keyword and normalizes to RawJob', async () => {
-    mockFetch([
-      {
-        id: 42,
-        title: 'React Developer',
-        company: { name: 'StartupCL', logo_url: null },
-        description: '<p>We need React and TypeScript skills</p>',
-        remote_position: true,
-        country: 'Chile',
-        published_at: '2026-04-01T00:00:00Z',
-        url: 'https://www.getonbrd.com/jobs/42',
-      },
-      {
-        id: 43,
-        title: 'Java Backend Engineer',
-        company: { name: 'OtherCo', logo_url: null },
-        description: '<p>Java Spring Boot experience required</p>',
-        remote_position: true,
-        country: 'Colombia',
-        published_at: '2026-04-01T00:00:00Z',
-        url: 'https://www.getonbrd.com/jobs/43',
-      },
-    ]);
+    mockFetch({
+      jobs: [
+        {
+          guid: 'https://himalayas.app/companies/startup-co/jobs/react-developer',
+          title: 'React Developer',
+          companyName: 'StartupCo',
+          companyLogo: 'https://cdn-images.himalayas.app/logo.png',
+          description: '<p>We need React and TypeScript skills</p>',
+          minSalary: 60000,
+          maxSalary: 90000,
+          currency: 'USD',
+          pubDate: 1743465600,   // 2025-04-01T00:00:00Z
+          expiryDate: 1751241600, // 2025-06-30T00:00:00Z
+          applicationLink: 'https://himalayas.app/companies/startup-co/jobs/react-developer',
+          locationRestrictions: ['United States', 'Canada'],
+        },
+        {
+          guid: 'https://himalayas.app/companies/other-co/jobs/java-backend-engineer',
+          title: 'Java Backend Engineer',
+          companyName: 'OtherCo',
+          companyLogo: null,
+          description: '<p>Java Spring Boot experience required</p>',
+          minSalary: null,
+          maxSalary: null,
+          currency: null,
+          pubDate: 1743465600,
+          expiryDate: null,
+          applicationLink: 'https://himalayas.app/companies/other-co/jobs/java-backend-engineer',
+          locationRestrictions: null,
+        },
+      ],
+    });
 
-    const jobs = await fetchFromGetOnBoard(['react'], 50);
+    const jobs = await fetchFromHimalayas(['react'], 50);
 
     expect(jobs).toHaveLength(1);
-    expect(jobs[0].external_id).toBe('getonboard_42');
+    expect(jobs[0].external_id).toBe('himalayas_startup-co_react-developer');
     expect(jobs[0].title).toBe('React Developer');
-    expect(jobs[0].company).toBe('StartupCL');
+    expect(jobs[0].company).toBe('StartupCo');
+    expect(jobs[0].company_logo_url).toBe('https://cdn-images.himalayas.app/logo.png');
     expect(jobs[0].remote_type).toBe('remote');
-    expect(jobs[0].source).toBe('getonboard');
+    expect(jobs[0].source).toBe('himalayas');
     expect(jobs[0].description).not.toContain('<p>');
-    expect(jobs[0].posted_at).toBe('2026-04-01T00:00:00Z');
+    expect(jobs[0].salary_min).toBe(60000);
+    expect(jobs[0].salary_max).toBe(90000);
+    expect(jobs[0].salary_currency).toBe('USD');
+    expect(jobs[0].location).toBe('United States, Canada');
+    expect(jobs[0].posted_at).toBe(new Date(1743465600 * 1000).toISOString());
+    expect(jobs[0].expires_at).toBe(new Date(1751241600 * 1000).toISOString());
   });
 
   it('returns empty array when no jobs match keywords', async () => {
-    mockFetch([
-      {
-        id: 99,
-        title: 'Java Backend Engineer',
-        company: { name: 'OtherCo', logo_url: null },
-        description: '<p>Java only</p>',
-        remote_position: true,
-        country: 'Colombia',
-        published_at: '2026-04-01T00:00:00Z',
-        url: 'https://www.getonbrd.com/jobs/99',
-      },
-    ]);
+    mockFetch({
+      jobs: [
+        {
+          guid: 'https://himalayas.app/companies/other-co/jobs/java-backend-engineer',
+          title: 'Java Backend Engineer',
+          companyName: 'OtherCo',
+          companyLogo: null,
+          description: '<p>Java only</p>',
+          minSalary: null,
+          maxSalary: null,
+          currency: null,
+          pubDate: null,
+          expiryDate: null,
+          applicationLink: 'https://himalayas.app/companies/other-co/jobs/java-backend-engineer',
+          locationRestrictions: null,
+        },
+      ],
+    });
 
-    const jobs = await fetchFromGetOnBoard(['react', 'typescript'], 50);
+    const jobs = await fetchFromHimalayas(['react', 'typescript'], 50);
     expect(jobs).toEqual([]);
   });
 
   it('throws on non-ok HTTP response', async () => {
     mockFetch({}, false, 503);
-    await expect(fetchFromGetOnBoard(['react'], 50)).rejects.toThrow(
-      'Get on Board request failed: 503'
+    await expect(fetchFromHimalayas(['react'], 50)).rejects.toThrow(
+      'Himalayas request failed: 503'
     );
   });
 
   it('throws on unexpected response shape', async () => {
-    mockFetch({ jobs: [] }); // object instead of array
-    await expect(fetchFromGetOnBoard(['react'], 50)).rejects.toThrow(
-      'Get on Board returned unexpected response shape'
+    mockFetch([{ title: 'Job' }]); // array instead of { jobs: [] }
+    await expect(fetchFromHimalayas(['react'], 50)).rejects.toThrow(
+      'Himalayas returned unexpected response shape'
     );
   });
 });
