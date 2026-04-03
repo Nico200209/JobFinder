@@ -19,7 +19,7 @@ export type JobStatus =
 
 export type RemoteType = 'remote' | 'hybrid' | 'onsite';
 
-export type JobSource = 'jsearch' | 'remotive' | 'arbeitnow' | 'manual';
+export type JobSource = 'jsearch' | 'remotive' | 'arbeitnow' | 'torre' | 'getonboard' | 'himalayas' | 'manual';
 
 // ------------------------------------------------------------
 // Score Types
@@ -139,4 +139,23 @@ export interface ScoringResult {
   match_score: number;       // 0–1
   priority_score: number;    // 0–1
   score_breakdown: ScoreBreakdown;
+}
+
+// ------------------------------------------------------------
+// Scraper / Run Summary Types
+// ------------------------------------------------------------
+
+export interface SourceResult {
+  source: JobSource;
+  fetched: number;
+  error: string | null;
+}
+
+export interface ScrapeRunSummary {
+  ran_at: string;
+  sources: SourceResult[];
+  total_fetched: number;
+  total_upserted: number;
+  duration_ms: number;
+  errors: string[];
 }
